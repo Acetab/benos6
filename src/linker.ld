@@ -23,6 +23,11 @@ SECTIONS
                *(.text)
        }
 	. = ALIGN(8);
+
+    /* 新增部分 */
+    .Yuxianze : { *(.Yuxianze) }
+    
+    . = ALIGN(8);
 	_etext = .;
 
 	/*

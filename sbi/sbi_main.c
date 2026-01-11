@@ -28,7 +28,9 @@ void sbi_main(void)
 	printk(BANNER);
 
 	sbi_trap_init();
-
+	unsigned long medeleg_val = read_csr(0x302);
+    medeleg_val |= (1 << 8); // 第8位对应 User Environment Call
+    write_csr(0x302, medeleg_val);
 	/* 设置跳转模式为S模式 */
 	val = read_csr(mstatus);
 	val = INSERT_FIELD(val, MSTATUS_MPP, PRV_S);

@@ -20,6 +20,8 @@ extern unsigned long func_addr[];
 extern unsigned long func_num_syms;
 extern char func_string;
 
+extern void s_mode_trap_vector(void);
+extern void user_entry(void); // U 模式代码入口
 static int print_func_name(unsigned long addr)
 {
 	int i;
@@ -263,24 +265,40 @@ static void clean_bss(void)
 	memset((void *)start, 0, size);
 }
 
+
 void kernel_main(void)
 {
-	clean_bss();
-	sbi_put_string("Welcome RISC-V!\r\n");
-	init_printk_done(sbi_putchar);
-	printk("printk init done\n");
+    clean_bss();
+    sbi_put_string("Welcome RISC-V!\r\n");
+    init_printk_done(sbi_putchar);
+    
+    /* 1. 设置 S 模式异常向量表 */
+    write_csr(stvec, (unsigned long)s_mode_trap_vector);
 
-	asm_test();
-	inline_asm_test();
+    /* 2. 准备切换到 U 模式 */
+    /* 设置 sstatus 寄存器的 SPP 位为 0 (表示之前的模式是 User) */
+    /* 开启 U 模式下的中断使能 (可选，SPIE) */
+    unsigned long sstatus = read_csr(sstatus);
+    sstatus &= ~(1 << 8); // Clear SPP (Bit 8) -> User Mode
+    sstatus |= (1 << 5);  // Set SPIE (Bit 5) -> Enable interrupts after sret
+    write_csr(sstatus, sstatus);
 
-	/* lab5-4：查表*/
-	print_func_name(0x800880);
-	print_func_name(0x800860);
-	print_func_name(0x800800);
+    /* 3. 设置 sepc 为 U 模式程序的入口地址 */
+    write_csr(sepc, (unsigned long)user_entry);
 
-	print_mem();
+    /* 4. 设置内核栈 */
+    /* 当发生中断时，sscratch 将用于恢复内核栈指针 */
+    /* 我们直接使用当前的 sp 作为内核栈顶 */
+    // 注意：这里需要内联汇编来读取当前的 sp 并写入 sscratch
+    asm volatile("csrw sscratch, sp");
 
-	while (1) {
-		;
-	}
+    printk("Switching to User Mode...\n");
+
+    /* 5. 执行 sret 切换到 U 模式 */
+    asm volatile("sret");
+
+    /* 不会执行到这里 */
+    while (1) {
+        ;
+    }
 }

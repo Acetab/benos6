@@ -265,31 +265,29 @@ static void clean_bss(void)
 	memset((void *)start, 0, size);
 }
 
-
 void kernel_main(void)
 {
     clean_bss();
     sbi_put_string("Welcome RISC-V!\r\n");
     init_printk_done(sbi_putchar);
-    
+
     /* 1. 设置 S 模式异常向量表 */
-    write_csr(stvec, (unsigned long)s_mode_trap_vector);
+    /* 修正：参数1是地址值，参数2是寄存器名 stvec */
+    write_csr((unsigned long)s_mode_trap_vector, stvec);
 
     /* 2. 准备切换到 U 模式 */
-    /* 设置 sstatus 寄存器的 SPP 位为 0 (表示之前的模式是 User) */
-    /* 开启 U 模式下的中断使能 (可选，SPIE) */
     unsigned long sstatus = read_csr(sstatus);
     sstatus &= ~(1 << 8); // Clear SPP (Bit 8) -> User Mode
     sstatus |= (1 << 5);  // Set SPIE (Bit 5) -> Enable interrupts after sret
+    
+    /* sstatus 这里既是变量名也是寄存器名，所以看似没变，实际上第一个是变量，第二个是寄存器 */
     write_csr(sstatus, sstatus);
 
     /* 3. 设置 sepc 为 U 模式程序的入口地址 */
-    write_csr(sepc, (unsigned long)user_entry);
+    /* 修正：参数1是地址值，参数2是寄存器名 sepc */
+    write_csr((unsigned long)user_entry, sepc);
 
     /* 4. 设置内核栈 */
-    /* 当发生中断时，sscratch 将用于恢复内核栈指针 */
-    /* 我们直接使用当前的 sp 作为内核栈顶 */
-    // 注意：这里需要内联汇编来读取当前的 sp 并写入 sscratch
     asm volatile("csrw sscratch, sp");
 
     printk("Switching to User Mode...\n");
@@ -297,7 +295,6 @@ void kernel_main(void)
     /* 5. 执行 sret 切换到 U 模式 */
     asm volatile("sret");
 
-    /* 不会执行到这里 */
     while (1) {
         ;
     }
